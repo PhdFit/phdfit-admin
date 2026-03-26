@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { RecruitingSignal, SignalStatus } from "@/types/admin";
+import type { RecruitingSignal, SignalStatus, SignalType } from "@/types/admin";
 import { mockSignals } from "@/lib/mock-data";
+import { isSafeUrl, formatDate } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -66,7 +67,7 @@ function statusBadge(status: SignalStatus) {
   }
 }
 
-function signalTypeBadge(type: string) {
+function signalTypeBadge(type: SignalType) {
   switch (type) {
     case "recruiting":
       return <Badge variant="secondary">Recruiting</Badge>;
@@ -82,14 +83,6 @@ function signalTypeBadge(type: string) {
 function truncateText(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen) + "...";
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 export default function SignalsPage() {
@@ -114,6 +107,7 @@ export default function SignalsPage() {
         s.id === id ? { ...s, status: newStatus } : s
       )
     );
+    setExpandedId(null);
   }
 
   function toggleExpanded(id: string) {
@@ -210,7 +204,10 @@ export default function SignalsPage() {
       {/* Filter Tabs + Table */}
       <Tabs
         defaultValue="all"
-        onValueChange={(value) => setActiveTab(value as TabFilter)}
+        onValueChange={(value) => {
+          setActiveTab(value as TabFilter);
+          setExpandedId(null);
+        }}
       >
         <TabsList>
           <TabsTrigger value="all">
@@ -324,16 +321,20 @@ function SignalRow({
           </span>
         </TableCell>
         <TableCell>
-          <a
-            href={signal.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ExternalLink className="size-3" />
-            Link
-          </a>
+          {isSafeUrl(signal.source_url) ? (
+            <a
+              href={signal.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="size-3" />
+              Link
+            </a>
+          ) : (
+            <span className="text-xs text-muted-foreground">Invalid URL</span>
+          )}
         </TableCell>
         <TableCell className="max-w-[200px]">
           <span className="text-muted-foreground" title={signal.extracted_text}>
@@ -343,16 +344,13 @@ function SignalRow({
         <TableCell>{formatDate(signal.detected_at)}</TableCell>
         <TableCell>{statusBadge(signal.status)}</TableCell>
         <TableCell>
-          <div
-            className="flex items-center gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex items-center gap-1">
             {signal.status !== "confirmed" && (
               <Button
                 size="xs"
                 variant="ghost"
                 className="text-green-600 hover:text-green-700 dark:text-green-400"
-                onClick={onConfirm}
+                onClick={(e) => { e.stopPropagation(); onConfirm(); }}
               >
                 <CheckCircle2 className="size-3.5" />
                 Confirm
@@ -363,7 +361,7 @@ function SignalRow({
                 size="xs"
                 variant="ghost"
                 className="text-red-600 hover:text-red-700 dark:text-red-400"
-                onClick={onReject}
+                onClick={(e) => { e.stopPropagation(); onReject(); }}
               >
                 <XCircle className="size-3.5" />
                 Reject
@@ -387,15 +385,19 @@ function SignalRow({
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <h4 className="text-sm font-semibold">Source URL</h4>
-                  <a
-                    href={signal.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 inline-flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400"
-                  >
-                    <ExternalLink className="size-3" />
-                    {signal.source_url}
-                  </a>
+                  {isSafeUrl(signal.source_url) ? (
+                    <a
+                      href={signal.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      <ExternalLink className="size-3" />
+                      {signal.source_url}
+                    </a>
+                  ) : (
+                    <span className="mt-1 text-sm text-muted-foreground">Invalid URL</span>
+                  )}
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold">Confidence Score</h4>

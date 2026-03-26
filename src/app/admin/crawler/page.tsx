@@ -135,7 +135,7 @@ function formatDuration(seconds: number | null): string {
   return `${hrs}h ${remMins}m`;
 }
 
-function formatDate(dateStr: string | null): string {
+function formatDateTime(dateStr: string | null): string {
   if (!dateStr) return "--";
   const d = new Date(dateStr);
   return d.toLocaleString("en-US", {
@@ -219,7 +219,7 @@ function CrawlJobsTable({ jobs }: { jobs: CrawlJob[] }) {
                   {job.target}
                 </TableCell>
                 <TableCell className="text-xs">
-                  {formatDate(job.started_at)}
+                  {formatDateTime(job.started_at)}
                 </TableCell>
                 <TableCell className="text-xs">
                   {formatDuration(job.duration_seconds)}
@@ -278,10 +278,10 @@ function CronTasksTable({ tasks }: { tasks: CronTask[] }) {
                   </code>
                 </TableCell>
                 <TableCell className="text-xs">
-                  {formatDate(task.last_run)}
+                  {formatDateTime(task.last_run)}
                 </TableCell>
                 <TableCell className="text-xs">
-                  {formatDate(task.next_run)}
+                  {formatDateTime(task.next_run)}
                 </TableCell>
                 <TableCell>
                   {task.status === "active" ? (

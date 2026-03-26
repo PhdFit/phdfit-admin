@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { type ReactNode, useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -33,18 +33,11 @@ import {
   mockAnalyticsOverview,
   mockSearchQueries,
 } from "@/lib/mock-data";
+import { formatDate } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
@@ -80,7 +73,7 @@ const statusBadgeVariant: Record<
 interface KpiItem {
   title: string;
   value: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }
 
 function KpiCards({ data }: { data: AnalyticsOverview }) {
