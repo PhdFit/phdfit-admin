@@ -1,109 +1,92 @@
-"use client";
-
-import { useMemo, useState } from "react";
 import {
-  Search,
   Upload,
-  Pencil,
   Users,
   BarChart3,
   AlertCircle,
   BrainCircuit,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react";
 import type { Professor } from "@/types/admin";
 import { mockProfessors } from "@/lib/mock-data";
+import { isSupabaseConnected } from "@/lib/supabase";
+import { getProfessors, getProfessorStats } from "@/lib/data/professors";
+import type { ProfessorRow } from "@/lib/data/professors";
+import { NoDbBanner } from "@/components/admin/no-db-banner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ProfessorsTable } from "./professors-client";
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-const PAGE_SIZE = 10;
-
-const COMPLETENESS_RANGES = [
-  { label: "All", min: 0, max: 100 },
-  { label: "0-25%", min: 0, max: 25 },
-  { label: "26-50%", min: 26, max: 50 },
-  { label: "51-75%", min: 51, max: 75 },
-  { label: "76-100%", min: 76, max: 100 },
-] as const;
-
-// ---------------------------------------------------------------------------
-// Helpers
+// Helpers – map ProfessorRow to the Professor type used by the UI
 // ---------------------------------------------------------------------------
 
-function completenessColor(pct: number): string {
-  if (pct >= 80) return "bg-green-500";
-  if (pct >= 50) return "bg-yellow-500";
-  return "bg-red-500";
+function computeCompleteness(row: ProfessorRow): number {
+  const fields = [
+    row.scholar_h_index != null,
+    row.topic_embedding != null,
+    row.recruiting_signal_score_hex != null,
+  ];
+  const filled = fields.filter(Boolean).length;
+  return Math.round((filled / fields.length) * 100);
 }
 
-function uniqueInstitutions(professors: Professor[]): string[] {
-  return Array.from(new Set(professors.map((p) => p.institution))).sort();
+function mapRowToProfessor(row: ProfessorRow): Professor {
+  return {
+    id: row.id,
+    name: row.full_name,
+    email: row.email_public,
+    institution: row.institution_name ?? "Unknown",
+    department: row.department_name ?? "Unknown",
+    title: row.title ?? "",
+    research_interests: [],
+    h_index: row.scholar_h_index,
+    paper_count: row.scholar_citation_count ?? 0,
+    grant_count: 0,
+    has_embedding: row.topic_embedding != null,
+    has_signals: row.recruiting_signal_score_hex != null,
+    data_completeness: computeCompleteness(row),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Stats cards (server-rendered, no interactivity needed)
 // ---------------------------------------------------------------------------
 
-function DataCompletenessSummary({
-  professors,
-}: {
-  professors: Professor[];
-}) {
-  const total = professors.length;
-  const avgCompleteness =
-    total > 0
-      ? professors.reduce((sum, p) => sum + p.data_completeness, 0) / total
-      : 0;
-  const missingEmbeddings = professors.filter((p) => !p.has_embedding).length;
-  const missingSignals = professors.filter((p) => !p.has_signals).length;
+interface StatsData {
+  total: number;
+  avgCompleteness: number;
+  missingEmbeddings: number;
+  missingSignals: number;
+}
 
-  const stats = [
+function DataCompletenessSummary({ stats }: { stats: StatsData }) {
+  const items = [
     {
       label: "Total Professors",
-      value: total.toLocaleString(),
+      value: stats.total.toLocaleString(),
       icon: Users,
     },
     {
       label: "Avg Completeness",
-      value: `${avgCompleteness.toFixed(1)}%`,
+      value: `${stats.avgCompleteness.toFixed(1)}%`,
       icon: BarChart3,
     },
     {
       label: "Missing Embeddings",
-      value: missingEmbeddings.toLocaleString(),
+      value: stats.missingEmbeddings.toLocaleString(),
       icon: BrainCircuit,
     },
     {
       label: "Missing Signals",
-      value: missingSignals.toLocaleString(),
+      value: stats.missingSignals.toLocaleString(),
       icon: AlertCircle,
     },
   ];
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {stats.map((s) => (
+      {items.map((s) => (
         <Card key={s.label}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -122,92 +105,75 @@ function DataCompletenessSummary({
   );
 }
 
-function CompletenessBar({ value }: { value: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-2 w-24 rounded-full bg-muted">
-        <div
-          className={`h-2 rounded-full ${completenessColor(value)}`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-      <span className="text-xs text-muted-foreground">{value}%</span>
-    </div>
-  );
+// ---------------------------------------------------------------------------
+// Helpers – derive stats from mock data
+// ---------------------------------------------------------------------------
+
+function mockStats(professors: Professor[]): StatsData {
+  const total = professors.length;
+  const avgCompleteness =
+    total > 0
+      ? professors.reduce((sum, p) => sum + p.data_completeness, 0) / total
+      : 0;
+  const missingEmbeddings = professors.filter((p) => !p.has_embedding).length;
+  const missingSignals = professors.filter((p) => !p.has_signals).length;
+  return { total, avgCompleteness, missingEmbeddings, missingSignals };
+}
+
+function uniqueInstitutions(professors: Professor[]): string[] {
+  return Array.from(new Set(professors.map((p) => p.institution))).sort();
 }
 
 // ---------------------------------------------------------------------------
-// Main Page
+// Page (async Server Component)
 // ---------------------------------------------------------------------------
 
-export default function ProfessorsPage() {
-  const [search, setSearch] = useState("");
-  const [institution, setInstitution] = useState("all");
-  const [completenessRange, setCompletenessRange] = useState("All");
-  const [page, setPage] = useState(1);
+export default async function ProfessorsPage() {
+  const connected = isSupabaseConnected();
 
-  const institutions = useMemo(
-    () => uniqueInstitutions(mockProfessors),
-    [],
-  );
+  let professors: Professor[];
+  let stats: StatsData;
+  let institutions: string[];
 
-  // Derive the selected range bounds
-  const selectedRange = COMPLETENESS_RANGES.find(
-    (r) => r.label === completenessRange,
-  ) ?? COMPLETENESS_RANGES[0];
+  if (connected) {
+    // Fetch real data from Supabase in parallel
+    const [listResult, dbStats] = await Promise.all([
+      getProfessors({ perPage: 500 }),
+      getProfessorStats(),
+    ]);
 
-  // Filter professors
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return mockProfessors.filter((p) => {
-      // text search
-      if (
-        q &&
-        !p.name.toLowerCase().includes(q) &&
-        !p.institution.toLowerCase().includes(q) &&
-        !p.department.toLowerCase().includes(q)
-      ) {
-        return false;
-      }
-      // institution filter
-      if (institution !== "all" && p.institution !== institution) {
-        return false;
-      }
-      // completeness filter
-      if (
-        p.data_completeness < selectedRange.min ||
-        p.data_completeness > selectedRange.max
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [search, institution, selectedRange]);
-
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
-  );
-
-  // Reset to page 1 when filters change
-  const handleSearch = (value: string) => {
-    setSearch(value);
-    setPage(1);
-  };
-  const handleInstitution = (value: string | null) => {
-    setInstitution(value ?? "all");
-    setPage(1);
-  };
-  const handleCompletenessRange = (value: string | null) => {
-    setCompletenessRange(value ?? "All");
-    setPage(1);
-  };
+    if (listResult && dbStats) {
+      professors = listResult.professors.map(mapRowToProfessor);
+      const avgCompleteness =
+        professors.length > 0
+          ? professors.reduce((sum, p) => sum + p.data_completeness, 0) /
+            professors.length
+          : 0;
+      stats = {
+        total: dbStats.total,
+        avgCompleteness,
+        missingEmbeddings: dbStats.total - dbStats.withEmbedding,
+        missingSignals: dbStats.total - dbStats.withSignals,
+      };
+      institutions = dbStats.institutions;
+    } else {
+      // Supabase connected but query failed – fall back to mock
+      professors = mockProfessors;
+      stats = mockStats(mockProfessors);
+      institutions = uniqueInstitutions(mockProfessors);
+    }
+  } else {
+    // No Supabase connection – use mock data
+    professors = mockProfessors;
+    stats = mockStats(mockProfessors);
+    institutions = uniqueInstitutions(mockProfessors);
+  }
 
   return (
     <div className="space-y-6">
+      {/* No-DB warning banner */}
+      {!connected && <NoDbBanner />}
+
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Professor Data Manager</h1>
@@ -218,163 +184,10 @@ export default function ProfessorsPage() {
       </div>
 
       {/* Summary Cards */}
-      <DataCompletenessSummary professors={mockProfessors} />
+      <DataCompletenessSummary stats={stats} />
 
-      {/* Search & Filter Bar */}
-      <Card>
-        <CardContent className="pt-0">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, institution, or department..."
-                value={search}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="pl-8"
-              />
-            </div>
-
-            {/* Institution Filter */}
-            <Select value={institution} onValueChange={handleInstitution}>
-              <SelectTrigger className="w-full sm:w-56">
-                <SelectValue placeholder="All Institutions" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Institutions</SelectItem>
-                {institutions.map((inst) => (
-                  <SelectItem key={inst} value={inst}>
-                    {inst}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Completeness Filter */}
-            <Select
-              value={completenessRange}
-              onValueChange={handleCompletenessRange}
-            >
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Completeness" />
-              </SelectTrigger>
-              <SelectContent>
-                {COMPLETENESS_RANGES.map((r) => (
-                  <SelectItem key={r.label} value={r.label}>
-                    {r.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Professor Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Institution</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead className="text-right">H-Index</TableHead>
-                <TableHead className="text-right">Papers</TableHead>
-                <TableHead>Data Completeness</TableHead>
-                <TableHead>Signals</TableHead>
-                <TableHead>Embedding</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginated.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No professors found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginated.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell>{p.institution}</TableCell>
-                    <TableCell>{p.department}</TableCell>
-                    <TableCell className="text-right">
-                      {p.h_index ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {p.paper_count}
-                    </TableCell>
-                    <TableCell>
-                      <CompletenessBar value={p.data_completeness} />
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={p.has_signals ? "default" : "secondary"}
-                      >
-                        {p.has_signals ? "Yes" : "No"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={p.has_embedding ? "default" : "secondary"}
-                      >
-                        {p.has_embedding ? "Yes" : "No"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon-sm">
-                        <Pencil className="size-3.5" />
-                        <span className="sr-only">Edit {p.name}</span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-
-          {/* Pagination */}
-          {filtered.length > 0 && (
-            <div className="flex items-center justify-between border-t px-4 py-3">
-              <span className="text-sm text-muted-foreground">
-                Showing {(safePage - 1) * PAGE_SIZE + 1}&ndash;
-                {Math.min(safePage * PAGE_SIZE, filtered.length)} of{" "}
-                {filtered.length}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={safePage <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  <ChevronLeft className="size-4" />
-                  <span className="sr-only">Previous page</span>
-                </Button>
-                <span className="px-2 text-sm">
-                  {safePage} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={safePage >= totalPages}
-                  onClick={() =>
-                    setPage((p) => Math.min(totalPages, p + 1))
-                  }
-                >
-                  <ChevronRight className="size-4" />
-                  <span className="sr-only">Next page</span>
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Interactive table with search / filter / pagination */}
+      <ProfessorsTable professors={professors} institutions={institutions} />
     </div>
   );
 }

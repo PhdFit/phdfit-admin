@@ -1,48 +1,87 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { NoDbBanner } from "@/components/admin/no-db-banner";
+import { isSupabaseConnected } from "@/lib/supabase";
+import { getProfessorStats } from "@/lib/data/professors";
+import { getUserStats } from "@/lib/data/users";
+import { getDataCoverage } from "@/lib/data/crawler";
+import { pingAllServices, type ServicePing } from "@/lib/data/system";
 import {
   mockDataCoverage,
   mockAnalyticsOverview,
-  mockLLMCostSummary,
   mockServices,
-  mockResources,
 } from "@/lib/mock-data";
 
-function StatusDot({ status }: { status: string }) {
-  const color =
-    status === "healthy"
-      ? "bg-green-500"
-      : status === "degraded"
-        ? "bg-yellow-500"
-        : "bg-red-500";
+function StatusDot({ ok }: { ok: boolean }) {
+  const color = ok ? "bg-green-500" : "bg-red-500";
   return <span className={`inline-block h-2 w-2 rounded-full ${color}`} />;
 }
 
-export default function AdminOverview() {
-  const coverage = mockDataCoverage;
-  const analytics = mockAnalyticsOverview;
-  const llm = mockLLMCostSummary;
-  const services = mockServices;
-  const resources = mockResources;
+export default async function AdminOverview() {
+  const connected = isSupabaseConnected();
+
+  // ---------- Fetch real data or fall back to mock ----------
+
+  let totalUsers = mockAnalyticsOverview.total_users;
+  let totalProfessors = mockDataCoverage.total_professors;
+
+  let coverage = {
+    total_professors: mockDataCoverage.total_professors,
+    with_papers: mockDataCoverage.with_papers,
+    with_embeddings: mockDataCoverage.with_embeddings,
+    with_signals: mockDataCoverage.with_signals,
+    with_grants: mockDataCoverage.with_grants,
+  };
+
+  let services: ServicePing[] = mockServices.map((s) => ({
+    name: s.name,
+    ok: s.status === "healthy",
+    latencyMs: s.latency_p95_ms,
+  }));
+
+  if (connected) {
+    const [userStats, profStats, coverageData, pings] = await Promise.all([
+      getUserStats(),
+      getProfessorStats(),
+      getDataCoverage(),
+      pingAllServices(),
+    ]);
+
+    if (userStats) {
+      totalUsers = userStats.total;
+    }
+
+    if (profStats) {
+      totalProfessors = profStats.total;
+    }
+
+    if (coverageData) {
+      coverage = coverageData;
+    }
+
+    services = pings;
+  }
+
+  const healthyCount = services.filter((s) => s.ok).length;
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Dashboard Overview</h1>
+
+      {!connected && <NoDbBanner />}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              DAU / MAU
+              Total Users
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {analytics.dau} / {analytics.mau}
-            </div>
+            <div className="text-2xl font-bold">{totalUsers}</div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -50,14 +89,10 @@ export default function AdminOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {coverage.total_professors}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {coverage.avg_completeness.toFixed(1)}% avg completeness
-            </p>
+            <div className="text-2xl font-bold">{totalProfessors}</div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -65,14 +100,13 @@ export default function AdminOverview() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ${llm.total_cost_month.toFixed(2)}
-            </div>
+            <div className="text-2xl font-bold text-muted-foreground">N/A</div>
             <p className="text-xs text-muted-foreground">
-              {llm.cache_hit_rate}% cache hit
+              No billing data available
             </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -82,18 +116,17 @@ export default function AdminOverview() {
           <CardContent>
             <div className="flex items-center gap-2">
               {services.map((s) => (
-                <StatusDot key={s.name} status={s.status} />
+                <StatusDot key={s.name} ok={s.ok} />
               ))}
               <span className="text-sm text-muted-foreground">
-                {services.filter((s) => s.status === "healthy").length}/
-                {services.length} healthy
+                {healthyCount}/{services.length} healthy
               </span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Data Coverage + Resources */}
+      {/* Data Coverage */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -106,7 +139,7 @@ export default function AdminOverview() {
               { label: "With Signals", value: coverage.with_signals, total: coverage.total_professors },
               { label: "With Grants", value: coverage.with_grants, total: coverage.total_professors },
             ].map((item) => {
-              const pct = ((item.value / item.total) * 100).toFixed(1);
+              const pct = item.total > 0 ? ((item.value / item.total) * 100).toFixed(1) : "0.0";
               return (
                 <div key={item.label} className="space-y-1">
                   <div className="flex justify-between text-sm">
@@ -127,32 +160,21 @@ export default function AdminOverview() {
           </CardContent>
         </Card>
 
+        {/* Service Health Detail */}
         <Card>
           <CardHeader>
-            <CardTitle>Free Tier Usage</CardTitle>
+            <CardTitle>Service Health</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {resources.map((r) => (
-              <div key={r.name} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span>{r.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">
-                      {r.current} / {r.limit} {r.unit}
-                    </span>
-                    {r.percentage > 80 && (
-                      <Badge variant="destructive" className="text-xs">
-                        Warning
-                      </Badge>
-                    )}
-                  </div>
+            {services.map((s) => (
+              <div key={s.name} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <StatusDot ok={s.ok} />
+                  <span>{s.name}</span>
                 </div>
-                <div className="h-2 rounded-full bg-muted">
-                  <div
-                    className={`h-2 rounded-full ${r.percentage > 80 ? "bg-destructive" : r.percentage > 60 ? "bg-yellow-500" : "bg-primary"}`}
-                    style={{ width: `${r.percentage}%` }}
-                  />
-                </div>
+                <span className="text-muted-foreground">
+                  {s.latencyMs}ms
+                </span>
               </div>
             ))}
           </CardContent>

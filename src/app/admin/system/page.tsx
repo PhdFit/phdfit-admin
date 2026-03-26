@@ -12,51 +12,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import {
-  Activity,
-  Clock,
-  Gauge,
-  HardDrive,
-  ListChecks,
-  AlertTriangle,
-} from "lucide-react";
-import type { ServiceHealth, ResourceUsage, QueueStatus } from "@/types/admin";
-import { mockServices, mockResources, mockQueues } from "@/lib/mock-data";
+import { Activity, Clock, Database, Gauge } from "lucide-react";
+import { pingAllServices, getDbTableCounts } from "@/lib/data/system";
+import type { ServicePing } from "@/lib/data/system";
+import { isSupabaseConnected } from "@/lib/supabase";
+import { NoDbBanner } from "@/components/admin/no-db-banner";
 
 // ---------------------------------------------------------------------------
 // Helper components
 // ---------------------------------------------------------------------------
 
-function StatusDot({ status }: { status: ServiceHealth["status"] }) {
-  const color =
-    status === "healthy"
-      ? "bg-green-500"
-      : status === "degraded"
-        ? "bg-yellow-500"
-        : "bg-red-500";
+function StatusDot({ ok }: { ok: boolean }) {
   return (
     <span
-      className={`inline-block h-3 w-3 shrink-0 rounded-full ${color}`}
-      aria-label={status}
+      className={`inline-block h-3 w-3 shrink-0 rounded-full ${ok ? "bg-green-500" : "bg-red-500"}`}
+      aria-label={ok ? "ok" : "down"}
     />
   );
-}
-
-function StatusBadge({ status }: { status: ServiceHealth["status"] }) {
-  const variant =
-    status === "healthy"
-      ? "secondary"
-      : status === "degraded"
-        ? "outline"
-        : "destructive";
-  return <Badge variant={variant}>{status}</Badge>;
-}
-
-function usageBarColor(percentage: number): string {
-  if (percentage > 80) return "bg-red-500";
-  if (percentage > 60) return "bg-yellow-500";
-  return "bg-green-500";
 }
 
 function formatLatency(ms: number): string {
@@ -68,37 +40,40 @@ function formatLatency(ms: number): string {
 // Section: Service Status Cards
 // ---------------------------------------------------------------------------
 
-function ServiceStatusCards({ services }: { services: ServiceHealth[] }) {
+function ServiceStatusCards({ services }: { services: ServicePing[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {services.map((service) => (
         <Card key={service.name}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <StatusDot status={service.status} />
+              <StatusDot ok={service.ok} />
               {service.name}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="flex items-center justify-between text-sm">
               <div>
-                <p className="text-muted-foreground">P95 Latency</p>
+                <p className="text-muted-foreground">Latency</p>
                 <p className="font-semibold">
-                  {formatLatency(service.latency_p95_ms)}
+                  {formatLatency(service.latencyMs)}
                 </p>
               </div>
-              <div>
-                <p className="text-muted-foreground">Error Rate</p>
-                <p className="font-semibold">{service.error_rate}%</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Uptime</p>
-                <p className="font-semibold">{service.uptime}%</p>
+              <div className="text-right">
+                <p className="text-muted-foreground">Status</p>
+                <p className="font-semibold">
+                  {service.ok ? "OK" : "Down"}
+                </p>
               </div>
             </div>
-            <div className="mt-2 flex items-center justify-end">
-              <StatusBadge status={service.status} />
-            </div>
+            {service.extra?.rateRemaining !== undefined && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Rate limit remaining:{" "}
+                <span className="font-medium text-foreground">
+                  {String(service.extra.rateRemaining)}
+                </span>
+              </p>
+            )}
           </CardContent>
         </Card>
       ))}
@@ -107,114 +82,36 @@ function ServiceStatusCards({ services }: { services: ServiceHealth[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Section: Free Tier Resource Usage
+// Section: Database Table Counts
 // ---------------------------------------------------------------------------
 
-function ResourceUsageSection({
-  resources,
+function DbTableSection({
+  tables,
 }: {
-  resources: ResourceUsage[];
+  tables: Array<{ table: string; count: number }>;
 }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <HardDrive className="h-5 w-5" />
-          Free Tier Resource Usage
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {resources.map((resource) => (
-          <div key={resource.name} className="space-y-1">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">{resource.name}</span>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">
-                  {resource.current} / {resource.limit} {resource.unit}
-                </span>
-                <span
-                  className={`text-xs font-semibold ${
-                    resource.percentage > 80
-                      ? "text-red-500"
-                      : resource.percentage > 60
-                        ? "text-yellow-500"
-                        : "text-green-500"
-                  }`}
-                >
-                  {resource.percentage}%
-                </span>
-                {resource.percentage > 80 && (
-                  <Badge variant="destructive" className="text-xs">
-                    <AlertTriangle className="mr-1 h-3 w-3" />
-                    Warning
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <div className="h-2.5 w-full rounded-full bg-muted">
-              <div
-                className={`h-2.5 rounded-full transition-all ${usageBarColor(resource.percentage)}`}
-                style={{ width: `${Math.min(resource.percentage, 100)}%` }}
-              />
-            </div>
-          </div>
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Section: Task Queue Status
-// ---------------------------------------------------------------------------
-
-function QueueStatusSection({ queues }: { queues: QueueStatus[] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ListChecks className="h-5 w-5" />
-          Task Queue Status
+          <Database className="h-5 w-5" />
+          Database Tables
         </CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Queue Name</TableHead>
-              <TableHead className="text-right">Pending</TableHead>
-              <TableHead className="text-right">Processing</TableHead>
-              <TableHead className="text-right">Failed</TableHead>
-              <TableHead className="text-right">Throughput/min</TableHead>
+              <TableHead>Table</TableHead>
+              <TableHead className="text-right">Row Count</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {queues.map((queue) => (
-              <TableRow key={queue.name}>
-                <TableCell className="font-medium">{queue.name}</TableCell>
+            {tables.map((t) => (
+              <TableRow key={t.table}>
+                <TableCell className="font-medium">{t.table}</TableCell>
                 <TableCell className="text-right">
-                  {queue.pending > 0 ? (
-                    <Badge variant="secondary">{queue.pending}</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">0</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {queue.processing > 0 ? (
-                    <Badge variant="default">{queue.processing}</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">0</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {queue.failed > 0 ? (
-                    <Badge variant="destructive">{queue.failed}</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">0</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {queue.throughput_per_min}
+                  {t.count.toLocaleString()}
                 </TableCell>
               </TableRow>
             ))}
@@ -226,41 +123,64 @@ function QueueStatusSection({ queues }: { queues: QueueStatus[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Mock DB table data (used when Supabase is not connected)
+// ---------------------------------------------------------------------------
+
+const MOCK_TABLE_COUNTS: Array<{ table: string; count: number }> = [
+  { table: "professors", count: 0 },
+  { table: "institutions", count: 0 },
+  { table: "departments", count: 0 },
+  { table: "papers", count: 0 },
+  { table: "grants", count: 0 },
+  { table: "topics", count: 0 },
+  { table: "recruiting_signals", count: 0 },
+  { table: "users", count: 0 },
+  { table: "source_snapshots", count: 0 },
+];
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-export default function SystemHealthPage() {
-  const services = mockServices;
-  const resources = mockResources;
-  const queues = mockQueues;
+export default async function SystemHealthPage() {
+  const dbConnected = isSupabaseConnected();
 
-  // Use the most recent last_check from services as the page-level timestamp
-  const lastChecked = services.length > 0 ? services[0].last_check : null;
+  // External API pings always work (no Supabase dependency)
+  const services = await pingAllServices();
+
+  // DB table counts require Supabase
+  const tableCounts = dbConnected
+    ? await getDbTableCounts()
+    : null;
+
+  const now = new Date();
+  const okCount = services.filter((s) => s.ok).length;
 
   return (
     <div className="space-y-6">
+      {/* No-DB warning */}
+      {!dbConnected && <NoDbBanner />}
+
       {/* Page Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Activity className="h-6 w-6" />
           <h1 className="text-2xl font-bold">System Health</h1>
         </div>
-        {lastChecked && (
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>
-              Last checked:{" "}
-              {new Date(lastChecked).toLocaleString("en-US", {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Clock className="h-4 w-4" />
+          <span>
+            Last checked:{" "}
+            {now.toLocaleString("en-US", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </span>
+        </div>
       </div>
 
       {/* Overall summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -271,8 +191,7 @@ export default function SystemHealthPage() {
             <div className="flex items-center gap-2">
               <Gauge className="h-5 w-5 text-muted-foreground" />
               <span className="text-2xl font-bold">
-                {services.filter((s) => s.status === "healthy").length}/
-                {services.length}
+                {okCount}/{services.length}
               </span>
               <span className="text-sm text-muted-foreground">healthy</span>
             </div>
@@ -281,35 +200,14 @@ export default function SystemHealthPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Resource Alerts
+              Database
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-muted-foreground" />
+              <Database className="h-5 w-5 text-muted-foreground" />
               <span className="text-2xl font-bold">
-                {resources.filter((r) => r.percentage > 80).length}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                above 80% usage
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Queue Failures
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <ListChecks className="h-5 w-5 text-muted-foreground" />
-              <span className="text-2xl font-bold">
-                {queues.reduce((sum, q) => sum + q.failed, 0)}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                failed tasks
+                {dbConnected ? "Connected" : "Not connected"}
               </span>
             </div>
           </CardContent>
@@ -322,14 +220,9 @@ export default function SystemHealthPage() {
         <ServiceStatusCards services={services} />
       </section>
 
-      {/* Free Tier Resource Usage */}
+      {/* Database Tables */}
       <section>
-        <ResourceUsageSection resources={resources} />
-      </section>
-
-      {/* Task Queue Status */}
-      <section>
-        <QueueStatusSection queues={queues} />
+        <DbTableSection tables={tableCounts ?? MOCK_TABLE_COUNTS} />
       </section>
     </div>
   );
