@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Search,
   Pencil,
@@ -221,7 +222,11 @@ export function ProfessorsTable({
               ) : (
                 paginated.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`/admin/professors/${p.id}`} className="hover:underline">
+                        {p.name}
+                      </Link>
+                    </TableCell>
                     <TableCell>{p.institution}</TableCell>
                     <TableCell>{p.department}</TableCell>
                     <TableCell className="text-right">
@@ -248,10 +253,12 @@ export function ProfessorsTable({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon-sm">
-                        <Pencil className="size-3.5" />
-                        <span className="sr-only">Edit {p.name}</span>
-                      </Button>
+                      <Link href={`/admin/professors/${p.id}`}>
+                        <Button variant="ghost" size="icon-sm">
+                          <Pencil className="size-3.5" />
+                          <span className="sr-only">Edit {p.name}</span>
+                        </Button>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))
