@@ -117,7 +117,7 @@ function DataCoverageCards({ coverage }: { coverage: DataCoverage }) {
               {c.label}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             <div className="text-2xl font-bold">{c.value}</div>
             {c.sub && (
               <p className="text-xs text-muted-foreground">{c.sub}</p>
@@ -144,7 +144,7 @@ function RecentSnapshotsTable({ snapshots }: { snapshots: SnapshotRow[] }) {
       <CardHeader>
         <CardTitle>Recent Snapshots</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -206,7 +206,7 @@ function CronTasksTable({ tasks }: { tasks: CronTask[] }) {
           </span>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>

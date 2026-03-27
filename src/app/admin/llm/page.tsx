@@ -264,7 +264,7 @@ export default function LLMCostMonitorPage() {
             <CardHeader>
               <CardTitle>LLM Usage Entries</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -346,7 +346,7 @@ export default function LLMCostMonitorPage() {
             <CardHeader>
               <CardTitle>Cost by Model</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="overflow-x-auto space-y-4">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -427,7 +427,7 @@ export default function LLMCostMonitorPage() {
             <CardHeader>
               <CardTitle>Cost by Purpose</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="overflow-x-auto space-y-4">
               <Table>
                 <TableHeader>
                   <TableRow>

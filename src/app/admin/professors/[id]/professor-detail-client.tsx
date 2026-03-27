@@ -253,14 +253,14 @@ export function ProfessorDetailClient({
     <>
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/admin/professors">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link href="/admin/professors" className="shrink-0">
             <Button variant="ghost" size="icon-sm">
               <ArrowLeft className="size-4" />
               <span className="sr-only">Back to Professors</span>
             </Button>
           </Link>
-          <div>
+          <div className="min-w-0 flex-1">
             {editing ? (
               <Input
                 value={form.full_name}
@@ -638,7 +638,7 @@ export function ProfessorDetailClient({
               <CardTitle>Enrichment Data (Raw)</CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="max-h-80 overflow-auto rounded bg-muted p-3 text-xs">
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs">
                 {JSON.stringify(professor.enrichment_data, null, 2)}
               </pre>
             </CardContent>
@@ -653,7 +653,7 @@ export function ProfessorDetailClient({
               <CardTitle>Hexagon Raw Signals</CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="max-h-80 overflow-auto rounded bg-muted p-3 text-xs">
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs">
                 {JSON.stringify(professor.hexagon_raw_signals, null, 2)}
               </pre>
             </CardContent>
@@ -715,13 +715,13 @@ export function ProfessorDetailClient({
             </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="overflow-x-auto p-0">
           {professor.signals.length === 0 ? (
             <p className="px-4 pb-4 text-sm text-muted-foreground">
               No recruiting signals detected.
             </p>
           ) : (
-            <Table>
+            <Table className="min-w-[600px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Type</TableHead>
