@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageSizeSelector } from "@/components/admin/page-size-selector";
 import {
   CheckCircle2,
   XCircle,
@@ -106,11 +107,19 @@ export function SignalsClient({ initialSignals, initialStats }: SignalsClientPro
   const [signals, setSignals] = useState<SignalRow[]>(initialSignals);
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered =
     activeTab === "all"
       ? signals
       : signals.filter((s) => s.signal_level === activeTab);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const start = filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const end = Math.min(safePage * pageSize, filtered.length);
 
   // Recompute stats from local state (may differ from initialStats after
   // confirm/reject actions).
@@ -229,6 +238,7 @@ export function SignalsClient({ initialSignals, initialStats }: SignalsClientPro
         onValueChange={(value) => {
           setActiveTab(value as TabFilter);
           setExpandedId(null);
+          setPage(1);
         }}
       >
         <TabsList>
@@ -268,7 +278,7 @@ export function SignalsClient({ initialSignals, initialStats }: SignalsClientPro
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filtered.map((signal) => (
+                      paged.map((signal) => (
                         <SignalRowView
                           key={signal.id}
                           signal={signal}
@@ -281,6 +291,18 @@ export function SignalsClient({ initialSignals, initialStats }: SignalsClientPro
                     )}
                   </TableBody>
                 </Table>
+                <div className="flex items-center justify-between border-t px-4 py-3">
+                  <PageSizeSelector value={pageSize} onChange={(s) => { setPageSize(s); setPage(1); }} />
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-muted-foreground">
+                      Showing {start}-{end} of {filtered.length}
+                    </span>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={safePage <= 1}>Previous</Button>
+                      <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={safePage >= totalPages}>Next</Button>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { CronTask, DataCoverage } from "@/types/admin";
 import type { SnapshotRow } from "@/lib/data/crawler";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageSizeSelector } from "@/components/admin/page-size-selector";
 import {
   Play,
   Clock,
@@ -128,6 +130,15 @@ function DataCoverageCards({ coverage }: { coverage: DataCoverage }) {
 }
 
 function RecentSnapshotsTable({ snapshots }: { snapshots: SnapshotRow[] }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const totalPages = Math.max(1, Math.ceil(snapshots.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const paged = snapshots.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const start = snapshots.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const end = Math.min(safePage * pageSize, snapshots.length);
+
   return (
     <Card>
       <CardHeader>
@@ -151,7 +162,7 @@ function RecentSnapshotsTable({ snapshots }: { snapshots: SnapshotRow[] }) {
                 </TableCell>
               </TableRow>
             ) : (
-              snapshots.map((snap) => (
+              paged.map((snap) => (
                 <TableRow key={snap.id}>
                   <TableCell>{sourceTypeBadge(snap.source_type)}</TableCell>
                   <TableCell className="max-w-[300px] truncate font-mono text-xs" title={snap.source_url}>
@@ -166,6 +177,18 @@ function RecentSnapshotsTable({ snapshots }: { snapshots: SnapshotRow[] }) {
             )}
           </TableBody>
         </Table>
+        <div className="flex items-center justify-between border-t px-4 py-3">
+          <PageSizeSelector value={pageSize} onChange={(s) => { setPageSize(s); setPage(1); }} />
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">
+              Showing {start}-{end} of {snapshots.length}
+            </span>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={safePage <= 1}>Previous</Button>
+              <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={safePage >= totalPages}>Next</Button>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

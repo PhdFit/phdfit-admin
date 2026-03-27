@@ -27,11 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-const PAGE_SIZE = 10;
+import { PageSizeSelector } from "@/components/admin/page-size-selector";
 
 const COMPLETENESS_RANGES = [
   { label: "All", min: 0, max: 100 },
@@ -86,6 +82,7 @@ export function ProfessorsTable({
   const [institution, setInstitution] = useState("all");
   const [completenessRange, setCompletenessRange] = useState("All");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Derive the selected range bounds
   const selectedRange =
@@ -121,11 +118,11 @@ export function ProfessorsTable({
   }, [professors, search, institution, selectedRange]);
 
   // Pagination
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paginated = filtered.slice(
-    (safePage - 1) * PAGE_SIZE,
-    safePage * PAGE_SIZE,
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
   );
 
   // Reset to page 1 when filters change
@@ -266,11 +263,12 @@ export function ProfessorsTable({
           {filtered.length > 0 && (
             <div className="flex items-center justify-between border-t px-4 py-3">
               <span className="text-sm text-muted-foreground">
-                Showing {(safePage - 1) * PAGE_SIZE + 1}&ndash;
-                {Math.min(safePage * PAGE_SIZE, filtered.length)} of{" "}
+                Showing {(safePage - 1) * pageSize + 1}&ndash;
+                {Math.min(safePage * pageSize, filtered.length)} of{" "}
                 {filtered.length}
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-3">
+                <PageSizeSelector value={pageSize} onChange={(s) => { setPageSize(s); setPage(1); }} />
                 <Button
                   variant="outline"
                   size="icon-sm"

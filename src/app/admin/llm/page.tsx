@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   DollarSign,
   CalendarDays,
@@ -19,12 +20,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { PageSizeSelector } from "@/components/admin/page-size-selector";
 import type { LLMUsageEntry, LLMCostSummary } from "@/types/admin";
 import { mockLLMUsage, mockLLMCostSummary } from "@/lib/mock-data";
 
@@ -135,10 +138,19 @@ export default function LLMCostMonitorPage() {
   const summary: LLMCostSummary = mockLLMCostSummary;
   const usage: LLMUsageEntry[] = mockLLMUsage;
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const totalInputTokens = usage.reduce((s, e) => s + e.input_tokens, 0);
   const totalOutputTokens = usage.reduce((s, e) => s + e.output_tokens, 0);
   const totalCost = usage.reduce((s, e) => s + e.cost_usd, 0);
   const totalRequests = usage.reduce((s, e) => s + e.request_count, 0);
+
+  const totalPages = Math.max(1, Math.ceil(usage.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedUsage = usage.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const start = usage.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const end = Math.min(safePage * pageSize, usage.length);
 
   const byModel = aggregateByModel(usage);
   const byPurpose = aggregateByPurpose(usage);
@@ -266,7 +278,7 @@ export default function LLMCostMonitorPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {usage.map((entry, idx) => (
+                  {pagedUsage.map((entry, idx) => (
                     <TableRow key={`${entry.date}-${entry.model}-${entry.purpose}-${idx}`}>
                       <TableCell>{entry.date}</TableCell>
                       <TableCell className="font-mono text-xs">
@@ -312,6 +324,18 @@ export default function LLMCostMonitorPage() {
                   </TableRow>
                 </TableFooter>
               </Table>
+              <div className="flex items-center justify-between border-t px-4 py-3">
+                <PageSizeSelector value={pageSize} onChange={(s) => { setPageSize(s); setPage(1); }} />
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    Showing {start}-{end} of {usage.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={safePage <= 1}>Previous</Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={safePage >= totalPages}>Next</Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

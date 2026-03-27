@@ -16,8 +16,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PageSizeSelector } from "@/components/admin/page-size-selector";
 import {
   Users,
   UserCheck,
@@ -303,6 +305,8 @@ export default function UsersClient({
   mockAnalytics,
 }: UsersClientProps) {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filteredUsers = useMemo(() => {
     if (!search.trim()) return users;
@@ -313,6 +317,12 @@ export default function UsersClient({
         (u.name && u.name.toLowerCase().includes(q)),
     );
   }, [users, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedUsers = filteredUsers.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const start = filteredUsers.length === 0 ? 0 : (safePage - 1) * pageSize + 1;
+  const end = Math.min(safePage * pageSize, filteredUsers.length);
 
   return (
     <div className="space-y-6">
@@ -333,7 +343,7 @@ export default function UsersClient({
             <Input
               placeholder="Filter by name or email..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               className="pl-9"
             />
           </div>
@@ -350,7 +360,19 @@ export default function UsersClient({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <UserListTable users={filteredUsers} />
+              <UserListTable users={pagedUsers} />
+              <div className="flex items-center justify-between border-t px-4 py-3">
+                <PageSizeSelector value={pageSize} onChange={(s) => { setPageSize(s); setPage(1); }} />
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    Showing {start}-{end} of {filteredUsers.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={safePage <= 1}>Previous</Button>
+                    <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={safePage >= totalPages}>Next</Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
