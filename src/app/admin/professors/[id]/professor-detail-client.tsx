@@ -65,7 +65,22 @@ const PROFILE_URL_LABELS: Record<string, string> = {
   orcid: "ORCID",
   semantic_scholar: "Semantic Scholar",
   openalex: "OpenAlex",
+  personal_website: "Personal Website",
+  cv_pdf: "CV (PDF)",
+  github: "GitHub",
+  dblp: "DBLP",
+  homepage: "Homepage",
 };
+
+/** Prettify an unknown key from external_profile_urls */
+function profileKeyLabel(key: string): string {
+  return (
+    PROFILE_URL_LABELS[key] ??
+    key
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
 
 function rankLabel(rank: string | null): string {
   if (!rank) return "Unknown";
@@ -100,8 +115,19 @@ interface EditableFields {
   external_profile_urls: Record<string, string>;
 }
 
+/** All well-known profile URL keys — used as the base set in edit mode */
+const KNOWN_PROFILE_KEYS = Object.keys(PROFILE_URL_LABELS);
+
 function toEditable(p: ProfessorDetail): EditableFields {
   const urls = p.external_profile_urls ?? {};
+  // Merge known keys + any extra keys already in the data
+  const allKeys = Array.from(
+    new Set([...KNOWN_PROFILE_KEYS, ...Object.keys(urls)]),
+  );
+  const profileUrls: Record<string, string> = {};
+  for (const key of allKeys) {
+    profileUrls[key] = (urls[key] as string) ?? "";
+  }
   return {
     full_name: p.full_name,
     preferred_name: p.preferred_name ?? "",
@@ -111,12 +137,7 @@ function toEditable(p: ProfessorDetail): EditableFields {
     faculty_page_url: p.faculty_page_url ?? "",
     lab_page_url: p.lab_page_url ?? "",
     is_active: p.is_active,
-    external_profile_urls: {
-      google_scholar: (urls.google_scholar as string) ?? "",
-      orcid: (urls.orcid as string) ?? "",
-      semantic_scholar: (urls.semantic_scholar as string) ?? "",
-      openalex: (urls.openalex as string) ?? "",
-    },
+    external_profile_urls: profileUrls,
   };
 }
 
@@ -473,29 +494,29 @@ export function ProfessorDetailClient({
             <h3 className="mb-2 text-sm font-medium">External Profiles</h3>
             {editing ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {Object.entries(PROFILE_URL_LABELS).map(([key, label]) => (
-                  <div key={key}>
-                    <label className="text-xs font-medium text-muted-foreground">
-                      {label}
-                    </label>
-                    <Input
-                      value={form.external_profile_urls[key] ?? ""}
-                      onChange={(e) => updateProfileUrl(key, e.target.value)}
-                      placeholder={`${label} URL`}
-                    />
-                  </div>
-                ))}
+                {Object.entries(form.external_profile_urls).map(
+                  ([key, value]) => (
+                    <div key={key}>
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {profileKeyLabel(key)}
+                      </label>
+                      <Input
+                        value={value}
+                        onChange={(e) => updateProfileUrl(key, e.target.value)}
+                        placeholder={`${profileKeyLabel(key)} URL`}
+                      />
+                    </div>
+                  ),
+                )}
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {Object.entries(PROFILE_URL_LABELS).map(([key, label]) => {
-                  const url =
-                    professor.external_profile_urls?.[key];
-                  if (!url) return null;
-                  return (
+                {Object.entries(professor.external_profile_urls ?? {})
+                  .filter(([, url]) => url)
+                  .map(([key, url]) => (
                     <a
                       key={key}
-                      href={url}
+                      href={url!}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -503,20 +524,18 @@ export function ProfessorDetailClient({
                         variant="outline"
                         className="cursor-pointer hover:bg-accent"
                       >
-                        {label}
+                        {profileKeyLabel(key)}
                         <ExternalLink className="ml-1 size-3" />
                       </Badge>
                     </a>
-                  );
-                })}
-                {!professor.external_profile_urls &&
-                  !Object.values(
-                    professor.external_profile_urls ?? {},
-                  ).some(Boolean) && (
-                    <span className="text-sm text-muted-foreground">
-                      No external profiles linked
-                    </span>
-                  )}
+                  ))}
+                {!Object.values(professor.external_profile_urls ?? {}).some(
+                  Boolean,
+                ) && (
+                  <span className="text-sm text-muted-foreground">
+                    No external profiles linked
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -529,32 +548,23 @@ export function ProfessorDetailClient({
           <CardTitle>Research Metrics</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {scoreCard("H-Index", professor.scholar_h_index)}
             {scoreCard("Citations", professor.scholar_citation_count)}
             {scoreCard("Research Impact", professor.research_impact_score)}
-            {scoreCard(
-              "Recruiting Signal",
-              professor.recruiting_signal_score_hex,
-            )}
+            {scoreCard("Research Activity", professor.research_activity_score_hex)}
+            {scoreCard("Recent Activity", professor.recent_activity_score)}
+            {scoreCard("Recruiting Signal", professor.recruiting_signal_score_hex)}
             {scoreCard("Funding Strength", professor.funding_strength_score)}
-            {scoreCard(
-              "Industry & Open Source",
-              professor.industry_opensource_score,
-            )}
-            {scoreCard("Mentorship Culture", professor.mentorship_culture_score)}
-            {scoreCard(
-              "Research Activity",
-              professor.research_activity_score_hex,
-            )}
+            {scoreCard("Funding Signal", professor.funding_signal_score)}
+            {scoreCard("Industry & OSS", professor.industry_opensource_score)}
+            {scoreCard("Mentorship", professor.mentorship_culture_score)}
           </div>
 
           {professor.scholar_interests &&
             professor.scholar_interests.length > 0 && (
               <div className="mt-4">
-                <h3 className="mb-2 text-sm font-medium">
-                  Scholar Interests
-                </h3>
+                <h3 className="mb-2 text-sm font-medium">Scholar Interests</h3>
                 <div className="flex flex-wrap gap-1.5">
                   {professor.scholar_interests.map((interest) => (
                     <Badge key={interest} variant="secondary">
@@ -566,6 +576,91 @@ export function ProfessorDetailClient({
             )}
         </CardContent>
       </Card>
+
+      {/* Research Summary & CV */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Research Summary & CV</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <span className="text-xs text-muted-foreground">Normalized Name</span>
+              <p className="text-sm">{professor.normalized_name ?? "--"}</p>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">CV Parsed</span>
+              <p className="text-sm">
+                {professor.cv_parsed === true
+                  ? "Yes"
+                  : professor.cv_parsed === false
+                    ? "No"
+                    : "--"}
+              </p>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">CV Awards Count</span>
+              <p className="text-sm">{professor.cv_awards_count ?? "--"}</p>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">Institution ID</span>
+              <p className="text-sm font-mono text-xs">{professor.institution_id ?? "--"}</p>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">Department ID</span>
+              <p className="text-sm font-mono text-xs">{professor.department_id ?? "--"}</p>
+            </div>
+          </div>
+
+          {professor.cv_education_summary && (
+            <div>
+              <span className="text-xs text-muted-foreground">CV Education Summary</span>
+              <p className="mt-1 whitespace-pre-wrap rounded bg-muted p-3 text-sm">
+                {professor.cv_education_summary}
+              </p>
+            </div>
+          )}
+
+          {professor.recent_topics_summary && (
+            <div>
+              <span className="text-xs text-muted-foreground">Recent Topics Summary</span>
+              <p className="mt-1 whitespace-pre-wrap rounded bg-muted p-3 text-sm">
+                {professor.recent_topics_summary}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Enrichment Raw Data */}
+      {professor.enrichment_data &&
+        Object.keys(professor.enrichment_data).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Enrichment Data (Raw)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="max-h-80 overflow-auto rounded bg-muted p-3 text-xs">
+                {JSON.stringify(professor.enrichment_data, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
+
+      {/* Hexagon Raw Signals */}
+      {professor.hexagon_raw_signals &&
+        Object.keys(professor.hexagon_raw_signals).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Hexagon Raw Signals</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="max-h-80 overflow-auto rounded bg-muted p-3 text-xs">
+                {JSON.stringify(professor.hexagon_raw_signals, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
 
       {/* Topics */}
       <Card>

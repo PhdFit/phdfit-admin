@@ -121,6 +121,14 @@ export interface ProfessorDetail extends ProfessorRow {
   research_activity_score_hex: number | null;
   scholar_interests: string[] | null;
   hexagon_raw_signals: Record<string, unknown> | null;
+  hexagon_source_urls: Record<string, unknown> | null;
+  enrichment_data: Record<string, unknown> | null;
+  cv_education_summary: string | null;
+  cv_awards_count: number | null;
+  recent_topics_summary: string | null;
+  recent_activity_score: number | null;
+  funding_signal_score: number | null;
+  normalized_name: string | null;
   // related
   topics: Array<{ name: string; topic_type: string; weight: number }>;
   signals: Array<{
@@ -153,7 +161,10 @@ export async function getProfessorById(
         scholar_h_index, scholar_citation_count, cv_parsed, enriched_at,
         research_impact_score, recruiting_signal_score_hex, topic_embedding,
         funding_strength_score, industry_opensource_score, mentorship_culture_score,
-        research_activity_score_hex, scholar_interests, hexagon_raw_signals
+        research_activity_score_hex, scholar_interests, hexagon_raw_signals,
+        hexagon_source_urls, enrichment_data, cv_education_summary,
+        cv_awards_count, recent_topics_summary, recent_activity_score,
+        funding_signal_score
       ),
       professor_topics(
         weight,
@@ -242,6 +253,16 @@ export async function getProfessorById(
     scholar_interests: (feat?.scholar_interests as string[]) ?? null,
     hexagon_raw_signals:
       (feat?.hexagon_raw_signals as Record<string, unknown>) ?? null,
+    hexagon_source_urls:
+      (feat?.hexagon_source_urls as Record<string, unknown>) ?? null,
+    enrichment_data:
+      (feat?.enrichment_data as Record<string, unknown>) ?? null,
+    cv_education_summary: (feat?.cv_education_summary as string) ?? null,
+    cv_awards_count: (feat?.cv_awards_count as number) ?? null,
+    recent_topics_summary: (feat?.recent_topics_summary as string) ?? null,
+    recent_activity_score: (feat?.recent_activity_score as number) ?? null,
+    funding_signal_score: (feat?.funding_signal_score as number) ?? null,
+    normalized_name: (row.normalized_name as string) ?? null,
     topics,
     signals,
   };
