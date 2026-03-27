@@ -548,15 +548,13 @@ export function ProfessorDetailClient({
           <CardTitle>Research Metrics</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {scoreCard("H-Index", professor.scholar_h_index)}
-            {scoreCard("Citations", professor.scholar_citation_count)}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {scoreCard("H-Index (Scholar)", professor.scholar_h_index)}
+            {scoreCard("Citations (Scholar)", professor.scholar_citation_count)}
             {scoreCard("Research Impact", professor.research_impact_score)}
             {scoreCard("Research Activity", professor.research_activity_score_hex)}
-            {scoreCard("Recent Activity", professor.recent_activity_score)}
             {scoreCard("Recruiting Signal", professor.recruiting_signal_score_hex)}
             {scoreCard("Funding Strength", professor.funding_strength_score)}
-            {scoreCard("Funding Signal", professor.funding_signal_score)}
             {scoreCard("Industry & OSS", professor.industry_opensource_score)}
             {scoreCard("Mentorship", professor.mentorship_culture_score)}
           </div>
