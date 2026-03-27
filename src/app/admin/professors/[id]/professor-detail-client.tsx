@@ -39,6 +39,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { formatDate } from "@/lib/utils";
 import type { ProfessorDetail } from "@/lib/data/professors";
+import { HexagonEvidence } from "@/components/admin/hexagon-evidence";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -542,38 +543,51 @@ export function ProfessorDetailClient({
         </CardContent>
       </Card>
 
-      {/* Research Metrics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Research Metrics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {scoreCard("H-Index (Scholar)", professor.scholar_h_index)}
-            {scoreCard("Citations (Scholar)", professor.scholar_citation_count)}
-            {scoreCard("Research Impact", professor.research_impact_score)}
-            {scoreCard("Research Activity", professor.research_activity_score_hex)}
-            {scoreCard("Recruiting Signal", professor.recruiting_signal_score_hex)}
-            {scoreCard("Funding Strength", professor.funding_strength_score)}
-            {scoreCard("Industry & OSS", professor.industry_opensource_score)}
-            {scoreCard("Mentorship", professor.mentorship_culture_score)}
-          </div>
-
-          {professor.scholar_interests &&
-            professor.scholar_interests.length > 0 && (
+      {/* Scholar Stats */}
+      {(professor.scholar_h_index != null || professor.scholar_citation_count != null || (professor.scholar_interests && professor.scholar_interests.length > 0)) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Scholar Metrics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              {professor.scholar_h_index != null && scoreCard("H-Index", professor.scholar_h_index)}
+              {professor.scholar_citation_count != null && scoreCard("Citations", professor.scholar_citation_count)}
+            </div>
+            {professor.scholar_interests && professor.scholar_interests.length > 0 && (
               <div className="mt-4">
-                <h3 className="mb-2 text-sm font-medium">Scholar Interests</h3>
+                <h3 className="mb-2 text-sm font-medium">Research Interests</h3>
                 <div className="flex flex-wrap gap-1.5">
                   {professor.scholar_interests.map((interest) => (
-                    <Badge key={interest} variant="secondary">
-                      {interest}
-                    </Badge>
+                    <Badge key={interest} variant="secondary">{interest}</Badge>
                   ))}
                 </div>
               </div>
             )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Hexagon Scores & Evidence */}
+      {professor.hexagon_evidence && Object.keys(professor.hexagon_evidence).length > 0 ? (
+        <HexagonEvidence evidence={professor.hexagon_evidence} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Research Metrics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {scoreCard("Research Impact", professor.research_impact_score)}
+              {scoreCard("Research Activity", professor.research_activity_score_hex)}
+              {scoreCard("Recruiting Signal", professor.recruiting_signal_score_hex)}
+              {scoreCard("Funding Strength", professor.funding_strength_score)}
+              {scoreCard("Industry & OSS", professor.industry_opensource_score)}
+              {scoreCard("Mentorship", professor.mentorship_culture_score)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Research Summary & CV */}
       <Card>
@@ -610,14 +624,38 @@ export function ProfessorDetailClient({
             </div>
           </div>
 
-          {professor.cv_education_summary && (
+          {professor.education.length > 0 ? (
+            <div>
+              <span className="text-xs text-muted-foreground">Education</span>
+              <div className="mt-1 space-y-2">
+                {professor.education.map((edu) => (
+                  <div key={edu.id} className="rounded border p-3">
+                    <p className="font-medium">
+                      {edu.degree}
+                      {edu.field_of_study ? ` in ${edu.field_of_study}` : ""}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {edu.institution_name}
+                      {edu.start_year && edu.end_year
+                        ? ` (${edu.start_year} – ${edu.end_year})`
+                        : edu.end_year
+                          ? ` (${edu.end_year})`
+                          : edu.start_year
+                            ? ` (${edu.start_year} – present)`
+                            : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : professor.cv_education_summary ? (
             <div>
               <span className="text-xs text-muted-foreground">CV Education Summary</span>
               <p className="mt-1 whitespace-pre-wrap rounded bg-muted p-3 text-sm">
                 {professor.cv_education_summary}
               </p>
             </div>
-          )}
+          ) : null}
 
           {professor.recent_topics_summary && (
             <div>
@@ -645,12 +683,13 @@ export function ProfessorDetailClient({
           </Card>
         )}
 
-      {/* Hexagon Raw Signals */}
-      {professor.hexagon_raw_signals &&
+      {/* Hexagon Raw Signals (legacy, shown only if no hexagon_evidence) */}
+      {!professor.hexagon_evidence &&
+        professor.hexagon_raw_signals &&
         Object.keys(professor.hexagon_raw_signals).length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Hexagon Raw Signals</CardTitle>
+              <CardTitle>Hexagon Raw Signals (Legacy)</CardTitle>
             </CardHeader>
             <CardContent>
               <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs">

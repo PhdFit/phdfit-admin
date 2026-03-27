@@ -22,6 +22,18 @@ export interface ProfessorRow {
   topic_embedding: unknown;
 }
 
+export interface ProfessorEducationEntry {
+  id: string;
+  professor_id: string;
+  institution_name: string | null;
+  degree: string | null;
+  field_of_study: string | null;
+  start_year: number | null;
+  end_year: number | null;
+  display_order: number;
+  created_at: string;
+}
+
 export interface ProfessorListResult {
   professors: ProfessorRow[];
   total: number;
@@ -104,6 +116,24 @@ export async function getProfessors(opts: {
 }
 
 // ---------------------------------------------------------------------------
+// Hexagon evidence types
+// ---------------------------------------------------------------------------
+
+export interface HexagonEvidenceItem {
+  type: string;
+  label: string;
+  detail: string | null;
+  source_url: string | null;
+  signal_strength?: string;
+}
+
+export interface HexagonDimension {
+  score: number;
+  summary: string;
+  evidence: HexagonEvidenceItem[];
+}
+
+// ---------------------------------------------------------------------------
 // Single-professor detail
 // ---------------------------------------------------------------------------
 
@@ -122,6 +152,7 @@ export interface ProfessorDetail extends ProfessorRow {
   scholar_interests: string[] | null;
   hexagon_raw_signals: Record<string, unknown> | null;
   hexagon_source_urls: Record<string, unknown> | null;
+  hexagon_evidence: Record<string, HexagonDimension> | null;
   enrichment_data: Record<string, unknown> | null;
   cv_education_summary: string | null;
   cv_awards_count: number | null;
@@ -130,6 +161,7 @@ export interface ProfessorDetail extends ProfessorRow {
   funding_signal_score: number | null;
   normalized_name: string | null;
   // related
+  education: ProfessorEducationEntry[];
   topics: Array<{ name: string; topic_type: string; weight: number }>;
   signals: Array<{
     signal_type: string;
@@ -162,7 +194,7 @@ export async function getProfessorById(
         research_impact_score, recruiting_signal_score_hex, topic_embedding,
         funding_strength_score, industry_opensource_score, mentorship_culture_score,
         research_activity_score_hex, scholar_interests, hexagon_raw_signals,
-        hexagon_source_urls, enrichment_data, cv_education_summary,
+        hexagon_source_urls, hexagon_evidence, enrichment_data, cv_education_summary,
         cv_awards_count, recent_topics_summary, recent_activity_score,
         funding_signal_score
       ),
@@ -203,6 +235,27 @@ export async function getProfessorById(
       weight: (pt.weight as number) ?? 0,
     };
   });
+
+  // Fetch structured education entries
+  const { data: eduData } = await supabase
+    .from("professor_education_entries")
+    .select("*")
+    .eq("professor_id", id)
+    .order("display_order");
+
+  const education: ProfessorEducationEntry[] = (eduData ?? []).map(
+    (e: Record<string, unknown>) => ({
+      id: e.id as string,
+      professor_id: e.professor_id as string,
+      institution_name: (e.institution_name as string) ?? null,
+      degree: (e.degree as string) ?? null,
+      field_of_study: (e.field_of_study as string) ?? null,
+      start_year: (e.start_year as number) ?? null,
+      end_year: (e.end_year as number) ?? null,
+      display_order: (e.display_order as number) ?? 0,
+      created_at: e.created_at as string,
+    }),
+  );
 
   const rawSignals = (row.recruiting_signals ?? []) as Array<
     Record<string, unknown>
@@ -255,6 +308,8 @@ export async function getProfessorById(
       (feat?.hexagon_raw_signals as Record<string, unknown>) ?? null,
     hexagon_source_urls:
       (feat?.hexagon_source_urls as Record<string, unknown>) ?? null,
+    hexagon_evidence:
+      (feat?.hexagon_evidence as Record<string, HexagonDimension>) ?? null,
     enrichment_data:
       (feat?.enrichment_data as Record<string, unknown>) ?? null,
     cv_education_summary: (feat?.cv_education_summary as string) ?? null,
@@ -263,6 +318,7 @@ export async function getProfessorById(
     recent_activity_score: (feat?.recent_activity_score as number) ?? null,
     funding_signal_score: (feat?.funding_signal_score as number) ?? null,
     normalized_name: (row.normalized_name as string) ?? null,
+    education,
     topics,
     signals,
   };
